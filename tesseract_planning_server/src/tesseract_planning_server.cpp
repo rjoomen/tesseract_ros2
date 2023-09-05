@@ -100,7 +100,7 @@ TesseractPlanningServer::TesseractPlanningServer(rclcpp::Node::SharedPtr node,
                                                  const std::string& robot_description,
                                                  std::string name)
   : node_(node)
-  , monitor_(std::make_shared<tesseract_monitoring::ROSEnvironmentMonitor>(node_, robot_description, name))
+  , monitor_(std::make_shared<tesseract_monitoring::ROSEnvironmentMonitor>(*node_, robot_description, name))
   , environment_cache_(std::make_shared<tesseract_environment::DefaultEnvironmentCache>(monitor_->getEnvironment()))
   , profiles_(std::make_shared<tesseract_planning::ProfileDictionary>())
   , planning_server_(std::make_unique<tesseract_planning::TaskComposerServer>())
@@ -120,7 +120,7 @@ TesseractPlanningServer::TesseractPlanningServer(rclcpp::Node::SharedPtr node,
                                                  tesseract_environment::Environment::UPtr env,
                                                  std::string name)
   : node_(node)
-  , monitor_(std::make_shared<tesseract_monitoring::ROSEnvironmentMonitor>(node_, std::move(env), name))
+  , monitor_(std::make_shared<tesseract_monitoring::ROSEnvironmentMonitor>(*node_, std::move(env), name))
   , environment_cache_(std::make_shared<tesseract_environment::DefaultEnvironmentCache>(monitor_->getEnvironment()))
   , profiles_(std::make_shared<tesseract_planning::ProfileDictionary>())
   , planning_server_(std::make_unique<tesseract_planning::TaskComposerServer>())
@@ -138,6 +138,8 @@ TesseractPlanningServer::TesseractPlanningServer(rclcpp::Node::SharedPtr node,
 
 void TesseractPlanningServer::ctor()
 {
+  // TODO: Make debug (for Trajopt) optional
+  console_bridge::setLogLevel(console_bridge::LogLevel::CONSOLE_BRIDGE_LOG_DEBUG);
   loadDefaultPlannerProfiles();
   monitor_->environment().addFindTCPOffsetCallback(
       std::bind(&TesseractPlanningServer::tfFindTCPOffset, this, std::placeholders::_1));

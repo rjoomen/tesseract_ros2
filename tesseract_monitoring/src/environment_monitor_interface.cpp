@@ -23,6 +23,8 @@
  * limitations under the License.
  */
 
+#include <tesseract_monitoring/environment_monitor_interface.h>
+
 #include <tesseract_common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <rclcpp/rclcpp.hpp>
@@ -76,16 +78,17 @@ typename SrvType::Response::SharedPtr call_service(const std::string& name,
 }
 
 ROSEnvironmentMonitorInterface::ROSEnvironmentMonitorInterface(rclcpp::Node::SharedPtr node, const std::string env_name)
-  : EnvironmentMonitorInterface(std::move(env_name)), node_
-{
-  node
-}
+  : EnvironmentMonitorInterface(std::move(env_name))
+  , node_{ node }
 #if __has_include(<rclcpp/version.h>)  // ROS 2 Humble
-, callback_group_ { node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive, false) }
+  , callback_group_{ node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive, false) }
 #else  // ROS 2 Foxy
-, callback_group_ { node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive) }
+  , callback_group_{ node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive) }
 #endif
-, logger_{ node_->get_logger().get_child(env_name + "_env_monitor") }, env_name_{ env_name } {}
+  , logger_{ node_->get_logger().get_child(env_name + "_env_monitor") }
+  , env_name_{ env_name }
+{
+}
 
 bool ROSEnvironmentMonitorInterface::wait(std::chrono::duration<double> duration) const
 {

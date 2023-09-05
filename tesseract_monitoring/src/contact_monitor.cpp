@@ -26,13 +26,13 @@
  */
 
 #include <tesseract_monitoring/contact_monitor.h>
-#include <tesseract_monitoring/environment_monitor.h>
 
 #include <tesseract_common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <tesseract_msgs/msg/contact_result_vector.hpp>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
+#include <tesseract_monitoring/environment_monitor.h>
 #include <tesseract_rosutils/utils.h>
 #include <tesseract_rosutils/plotting.h>
 #include <tesseract_monitoring/constants.h>
@@ -41,15 +41,15 @@ namespace tesseract_monitoring
 {
 ContactMonitor::ContactMonitor(std::string monitor_namespace,
                                tesseract_environment::Environment::UPtr env,
-                               rclcpp::Node::SharedPtr node,
+                               const rclcpp::Node& parent_node,
                                std::vector<std::string> monitored_link_names,
                                std::vector<std::string> disabled_link_names,
                                tesseract_collision::ContactTestType type,
                                double contact_distance,
                                const std::string& joint_state_topic)
   : monitor_namespace_(std::move(monitor_namespace))
-  , node_(node)
-  , internal_node_(std::make_shared<rclcpp::Node>("ContactMonitor_internal", node->get_fully_qualified_name()))
+  , node_(
+        std::make_shared<rclcpp::Node>(monitor_namespace_ + "_ContactMonitor", parent_node.get_fully_qualified_name()))
   , monitored_link_names_(std::move(monitored_link_names))
   , disabled_link_names_(std::move(disabled_link_names))
   , type_(type)
@@ -60,7 +60,7 @@ ContactMonitor::ContactMonitor(std::string monitor_namespace,
 
   // Create Environment Monitor
   monitor_ =
-      std::make_unique<tesseract_monitoring::ROSEnvironmentMonitor>(internal_node_, std::move(env), monitor_namespace_);
+      std::make_unique<tesseract_monitoring::ROSEnvironmentMonitor>(parent_node, std::move(env), monitor_namespace_);
   manager_ = monitor_->environment().getDiscreteContactManager();
 
   if (manager_ == nullptr)
@@ -73,14 +73,14 @@ ContactMonitor::ContactMonitor(std::string monitor_namespace,
 
   std::cout << ((disabled_link_names_.empty()) ? "Empty" : "Not Empty") << std::endl;
 
-  joint_states_sub_ = internal_node_->create_subscription<sensor_msgs::msg::JointState>(
+  joint_states_sub_ = node_->create_subscription<sensor_msgs::msg::JointState>(
       joint_state_topic, 1000, std::bind(&ContactMonitor::callbackJointState, this, std::placeholders::_1));
   std::string contact_results_topic = R"(/)" + monitor_namespace_ + DEFAULT_PUBLISH_CONTACT_RESULTS_TOPIC;
   std::string compute_contact_results = R"(/)" + monitor_namespace_ + DEFAULT_COMPUTE_CONTACT_RESULTS_SERVICE;
 
-  contact_results_pub_ = internal_node_->create_publisher<tesseract_msgs::msg::ContactResultVector>(
-      contact_results_topic, rclcpp::QoS(100));
-  compute_contact_results_ = internal_node_->create_service<tesseract_msgs::srv::ComputeContactResultVector>(
+  contact_results_pub_ =
+      node_->create_publisher<tesseract_msgs::msg::ContactResultVector>(contact_results_topic, rclcpp::QoS(100));
+  compute_contact_results_ = node_->create_service<tesseract_msgs::srv::ComputeContactResultVector>(
       compute_contact_results,
       std::bind(
           &ContactMonitor::callbackComputeContactResultVector, this, std::placeholders::_1, std::placeholders::_2),
@@ -101,7 +101,7 @@ void ContactMonitor::startPublishingMarkers()
   publish_contact_markers_ = true;
   std::string contact_marker_topic = R"(/)" + monitor_namespace_ + DEFAULT_PUBLISH_CONTACT_MARKER_TOPIC;
   contact_marker_pub_ =
-      internal_node_->create_publisher<visualization_msgs::msg::MarkerArray>(contact_marker_topic, rclcpp::QoS(100));
+      node_->create_publisher<visualization_msgs::msg::MarkerArray>(contact_marker_topic, rclcpp::QoS(100));
 }
 
 /**

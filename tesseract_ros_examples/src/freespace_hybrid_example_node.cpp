@@ -76,7 +76,7 @@ int main(int argc, char** argv)
   std::thread spinner{ [node]() { rclcpp::spin(node); } };
 
   // Create monitor
-  auto monitor = std::make_shared<tesseract_monitoring::ROSEnvironmentMonitor>(node, env, EXAMPLE_MONITOR_NAMESPACE);
+  auto monitor = std::make_shared<tesseract_monitoring::ROSEnvironmentMonitor>(*node, env, EXAMPLE_MONITOR_NAMESPACE);
   if (rviz)
     monitor->startPublishingEnvironment();
 

@@ -52,7 +52,7 @@ class ContactMonitor
 public:
   ContactMonitor(std::string monitor_namespace,
                  tesseract_environment::Environment::UPtr env,
-                 rclcpp::Node::SharedPtr node,
+                 const rclcpp::Node& parent_node,
                  std::vector<std::string> monitored_link_names,
                  std::vector<std::string> disabled_link_names,
                  tesseract_collision::ContactTestType type,
@@ -113,7 +113,6 @@ private:
   int env_revision_{ 0 };
   tesseract_environment::EnvironmentMonitor::UPtr monitor_;
   rclcpp::Node::SharedPtr node_;
-  rclcpp::Node::SharedPtr internal_node_;
   std::vector<std::string> monitored_link_names_;
   std::vector<std::string> disabled_link_names_;
   tesseract_collision::ContactTestType type_;

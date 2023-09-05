@@ -220,7 +220,7 @@ void EnvironmentMonitorProperties::onURDFDescriptionChanged()
   if (env->init(urdf_xml_string, srdf_xml_string, locator))
   {
     data_->monitor = std::make_unique<tesseract_monitoring::ROSEnvironmentMonitor>(
-        data_->node, env, data_->urdf_description_string_property->getStdString());
+        *data_->node, env, data_->urdf_description_string_property->getStdString());
     if (data_->monitor != nullptr)
     {
       data_->render_manager =
@@ -254,7 +254,7 @@ void EnvironmentMonitorProperties::onEnvironmentTopicChanged()
 
   auto env = std::make_shared<tesseract_environment::Environment>();
   data_->monitor =
-      std::make_unique<tesseract_monitoring::ROSEnvironmentMonitor>(data_->node, env, data_->monitor_namespace);
+      std::make_unique<tesseract_monitoring::ROSEnvironmentMonitor>(*data_->node, env, data_->monitor_namespace);
 
   if (data_->monitor != nullptr)
   {
@@ -298,7 +298,7 @@ void EnvironmentMonitorProperties::snapshotCallback(const tesseract_msgs::msg::E
     env->setState(jv);
 
     data_->monitor = std::make_unique<tesseract_monitoring::ROSEnvironmentMonitor>(
-        data_->node, env, data_->urdf_description_string_property->getStdString());
+        *data_->node, env, data_->urdf_description_string_property->getStdString());
     if (data_->monitor != nullptr)
     {
       data_->render_manager =

@@ -71,17 +71,19 @@ public:
 
   /**
    * @brief Constructor
+   * @param parent_node A node to access ROS info
    * @param robot_description The name of the ROS parameter that contains the URDF (in string format)
    * @param monitor_namespace A name identifying this monitor, must be unique
    */
-  ROSEnvironmentMonitor(rclcpp::Node::SharedPtr node, std::string robot_description, std::string monitor_namespace);
+  ROSEnvironmentMonitor(const rclcpp::Node& parent_node, std::string robot_description, std::string monitor_namespace);
 
   /**
    * @brief Constructor
+   * @param parent_node A node to access ROS info
    * @param env The environment
    * @param monitor_namespace A name identifying this monitor, must be unique
    */
-  ROSEnvironmentMonitor(rclcpp::Node::SharedPtr node,
+  ROSEnvironmentMonitor(const rclcpp::Node& parent_node,
                         std::shared_ptr<tesseract_environment::Environment> env,
                         std::string monitor_namespace);
 
@@ -142,8 +144,8 @@ protected:
   bool enforce_next_state_update_;  /// flag to enforce immediate state update in onStateUpdate()
 
   rclcpp::Node::SharedPtr node_;
-  rclcpp::Node::SharedPtr internal_node_;
-  rclcpp::executors::MultiThreadedExecutor::SharedPtr internal_node_executor_;
+  rclcpp::executors::MultiThreadedExecutor::SharedPtr internal_node_executor_ =
+      std::make_shared<rclcpp::executors::MultiThreadedExecutor>();
   std::shared_ptr<std::thread> internal_node_spinner_;
   std::string robot_description_;
 

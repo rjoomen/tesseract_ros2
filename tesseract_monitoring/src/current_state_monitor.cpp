@@ -34,6 +34,8 @@
 
 /* Author: Ioan Sucan */
 
+#include <tesseract_monitoring/current_state_monitor.h>
+
 #include <tesseract_common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <limits>

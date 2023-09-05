@@ -146,7 +146,7 @@ int main(int argc, char** argv)
 
   tesseract_monitoring::ContactMonitor cm(monitor_namespace,
                                           std::move(env),
-                                          node,
+                                          *node,
                                           monitored_link_names,
                                           disabled_link_names,
                                           type,

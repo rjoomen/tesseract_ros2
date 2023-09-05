@@ -35,6 +35,7 @@
 #include <tesseract_rosutils/plotting.h>
 #include <tesseract_rosutils/utils.h>
 #include <std_srvs/srv/set_bool.hpp>
+#include <tesseract_rosutils/utils.h>
 
 #include <tesseract_environment/environment.h>
 #include <tesseract_scene_graph/graph.h>
@@ -81,7 +82,7 @@ int main(int argc, char** argv)
   std::thread spinner{ [node]() { rclcpp::spin(node); } };
 
   // Create monitor
-  auto monitor = std::make_shared<tesseract_monitoring::ROSEnvironmentMonitor>(node, env, EXAMPLE_MONITOR_NAMESPACE);
+  auto monitor = std::make_shared<tesseract_monitoring::ROSEnvironmentMonitor>(*node, env, EXAMPLE_MONITOR_NAMESPACE);
   if (rviz)
     monitor->startPublishingEnvironment();
 
