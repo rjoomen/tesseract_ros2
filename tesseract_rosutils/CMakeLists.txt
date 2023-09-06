@@ -45,6 +45,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 ament_export_targets(${PROJECT_NAME}-targets HAS_LIBRARY_TARGET)
 ament_export_dependencies(
   rclcpp
+  tf2_eigen
   trajectory_msgs
   visualization_msgs
   tesseract_msgs
