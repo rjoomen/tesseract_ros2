@@ -100,7 +100,6 @@ install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
 ament_export_targets(${PROJECT_NAME}-targets HAS_LIBRARY_TARGET)
 ament_export_dependencies(
   rclcpp
-  tf2_eigen
   tf2_ros
   tesseract_msgs
 )
