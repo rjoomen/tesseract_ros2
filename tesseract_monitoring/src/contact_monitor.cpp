@@ -39,28 +39,38 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 namespace tesseract_monitoring
 {
+static const char LOGGER_ID[] = "ContactMonitor";
+
 ContactMonitor::ContactMonitor(std::string monitor_namespace,
                                tesseract_environment::Environment::UPtr env,
-                               const rclcpp::Node& parent_node,
+                               const rclcpp::Node::SharedPtr& node,
                                std::vector<std::string> monitored_link_names,
                                std::vector<std::string> disabled_link_names,
                                tesseract_collision::ContactTestType type,
                                double contact_distance,
                                const std::string& joint_state_topic)
   : monitor_namespace_(std::move(monitor_namespace))
-  , node_(
-        std::make_shared<rclcpp::Node>(monitor_namespace_ + "_ContactMonitor", parent_node.get_fully_qualified_name()))
+  , node_(node)
+  , logger_{ node_->get_logger().get_child(LOGGER_ID).get_child(monitor_namespace_) }
   , monitored_link_names_(std::move(monitored_link_names))
   , disabled_link_names_(std::move(disabled_link_names))
   , type_(type)
   , contact_distance_(contact_distance)
 {
+#if __has_include(<rclcpp/version.h>)  // ROS 2 Humble
+  callback_group_ = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive, false);
+  callback_executor_ = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
+  callback_executor_->add_callback_group(callback_group_, node_->get_node_base_interface());
+  callback_thread_ = std::make_shared<std::thread>([this]() { callback_executor_->spin(); });
+#else  // ROS 2 Foxy
+  callback_group_ = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+#endif
+
   if (env == nullptr)
     throw std::runtime_error("Null pointer passed for environment object to contact monitor.");
 
   // Create Environment Monitor
-  monitor_ =
-      std::make_unique<tesseract_monitoring::ROSEnvironmentMonitor>(parent_node, std::move(env), monitor_namespace_);
+  monitor_ = std::make_unique<tesseract_monitoring::ROSEnvironmentMonitor>(node, std::move(env), monitor_namespace_);
   manager_ = monitor_->environment().getDiscreteContactManager();
 
   if (manager_ == nullptr)
@@ -73,21 +83,34 @@ ContactMonitor::ContactMonitor(std::string monitor_namespace,
 
   std::cout << ((disabled_link_names_.empty()) ? "Empty" : "Not Empty") << std::endl;
 
+  rclcpp::SubscriptionOptions s_options;
+  s_options.callback_group = callback_group_;
   joint_states_sub_ = node_->create_subscription<sensor_msgs::msg::JointState>(
-      joint_state_topic, 1000, std::bind(&ContactMonitor::callbackJointState, this, std::placeholders::_1));
+      joint_state_topic, 1000, std::bind(&ContactMonitor::callbackJointState, this, std::placeholders::_1), s_options);
   std::string contact_results_topic = R"(/)" + monitor_namespace_ + DEFAULT_PUBLISH_CONTACT_RESULTS_TOPIC;
   std::string compute_contact_results = R"(/)" + monitor_namespace_ + DEFAULT_COMPUTE_CONTACT_RESULTS_SERVICE;
 
-  contact_results_pub_ =
-      node_->create_publisher<tesseract_msgs::msg::ContactResultVector>(contact_results_topic, rclcpp::QoS(100));
+  rclcpp::PublisherOptions p_options;
+  p_options.callback_group = callback_group_;
+  contact_results_pub_ = node_->create_publisher<tesseract_msgs::msg::ContactResultVector>(
+      contact_results_topic, rclcpp::QoS(100), p_options);
   compute_contact_results_ = node_->create_service<tesseract_msgs::srv::ComputeContactResultVector>(
       compute_contact_results,
       std::bind(
           &ContactMonitor::callbackComputeContactResultVector, this, std::placeholders::_1, std::placeholders::_2),
-      rmw_qos_profile_services_default);
+      rmw_qos_profile_services_default,
+      callback_group_);
 }
 
-ContactMonitor::~ContactMonitor() { current_joint_states_evt_.notify_all(); }
+ContactMonitor::~ContactMonitor()
+{
+  current_joint_states_evt_.notify_all();
+#if __has_include(<rclcpp/version.h>)  // ROS 2 Humble
+  callback_executor_->cancel();
+  if (callback_thread_->joinable())
+    callback_thread_->join();
+#endif
+}
 
 void ContactMonitor::startPublishingEnvironment() { monitor_->startPublishingEnvironment(); }
 
@@ -100,8 +123,10 @@ void ContactMonitor::startPublishingMarkers()
 {
   publish_contact_markers_ = true;
   std::string contact_marker_topic = R"(/)" + monitor_namespace_ + DEFAULT_PUBLISH_CONTACT_MARKER_TOPIC;
+  rclcpp::PublisherOptions options;
+  options.callback_group = callback_group_;
   contact_marker_pub_ =
-      node_->create_publisher<visualization_msgs::msg::MarkerArray>(contact_marker_topic, rclcpp::QoS(100));
+      node_->create_publisher<visualization_msgs::msg::MarkerArray>(contact_marker_topic, rclcpp::QoS(100), options);
 }
 
 /**

@@ -47,7 +47,9 @@ namespace tesseract_rosutils
 class ROSPlotting : public tesseract_visualization::Visualization
 {
 public:
-  ROSPlotting(std::string root_link = "world", std::string topic_namespace = "tesseract");
+  ROSPlotting(const rclcpp::Node::SharedPtr& parent_node,
+              std::string root_link = "world",
+              std::string topic_namespace = "tesseract");
 
   ~ROSPlotting();
 
@@ -131,9 +133,15 @@ private:
   std::string root_link_;       /**< Root link of markers */
   std::string topic_namespace_; /**< Namespace used when publishing markers */
   int marker_counter_;          /**< Counter when plotting */
+
   rclcpp::Node::SharedPtr node_;
-  rclcpp::executors::MultiThreadedExecutor::SharedPtr internal_node_executor_;
-  std::shared_ptr<std::thread> internal_node_spinner_;
+  rclcpp::Logger logger_;
+  rclcpp::CallbackGroup::SharedPtr callback_group_;
+#if __has_include(<rclcpp/version.h>)  // ROS 2 Humble
+  rclcpp::executors::SingleThreadedExecutor::SharedPtr callback_executor_;
+  std::shared_ptr<std::thread> callback_thread_;
+#endif
+
   rclcpp::Publisher<tesseract_msgs::msg::SceneGraph>::SharedPtr scene_pub_;           /**< Scene publisher */
   rclcpp::Publisher<tesseract_msgs::msg::Trajectory>::SharedPtr trajectory_pub_;      /**< Trajectory publisher */
   rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr collisions_pub_; /**< Collision Data publisher */

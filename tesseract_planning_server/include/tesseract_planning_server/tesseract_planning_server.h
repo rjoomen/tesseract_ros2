@@ -84,6 +84,7 @@ public:
 
 protected:
   rclcpp::Node::SharedPtr node_;
+  rclcpp::Logger logger_;
 
   /** @brief The environment monitor to keep the planning server updated with the latest */
   std::shared_ptr<tesseract_environment::EnvironmentMonitor> monitor_;

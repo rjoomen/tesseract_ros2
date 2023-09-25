@@ -78,12 +78,10 @@ public:
   CurrentStateMonitor(const std::shared_ptr<const tesseract_environment::Environment>& env);
 
   /** @brief Constructor.
-   *  @param robot_model The current kinematic model to build on
-   *  @param tf A pointer to the tf transformer to use
    *  @param node A rclcpp::Node to access ROS info
+   *  @param env The environment to monitor
    */
-  CurrentStateMonitor(const std::shared_ptr<const tesseract_environment::Environment>& env,
-                      rclcpp::Node::SharedPtr node);
+  CurrentStateMonitor(const rclcpp::Node::SharedPtr& node, const std::shared_ptr<const tesseract_environment::Environment>& env);
 
   ~CurrentStateMonitor();
   CurrentStateMonitor(const CurrentStateMonitor&) = delete;
@@ -192,6 +190,13 @@ private:
   bool isPassiveOrMimicDOF(const std::string& dof) const;
 
   rclcpp::Node::SharedPtr node_;
+  rclcpp::Logger logger_;
+  rclcpp::CallbackGroup::SharedPtr callback_group_;
+#if __has_include(<rclcpp/version.h>)  // ROS 2 Humble
+  rclcpp::executors::SingleThreadedExecutor::SharedPtr callback_executor_;
+  std::shared_ptr<std::thread> callback_thread_;
+#endif
+
   std::shared_ptr<const tesseract_environment::Environment> env_;
   tesseract_scene_graph::SceneState env_state_;
   int last_environment_revision_;

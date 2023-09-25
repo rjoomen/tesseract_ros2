@@ -94,13 +94,15 @@ static const std::string DCC_DEFAULT_NAMESPACE = "DiscreteContactCheckTask";
 
 namespace tesseract_planning_server
 {
+static const char LOGGER_ID[] = "TesseractPlanningServer";
 const std::string TesseractPlanningServer::DEFAULT_GET_MOTION_PLAN_ACTION = "tesseract_get_motion_plan";
 
-TesseractPlanningServer::TesseractPlanningServer(rclcpp::Node::SharedPtr node,
+TesseractPlanningServer::TesseractPlanningServer(const rclcpp::Node::SharedPtr& node,
                                                  const std::string& robot_description,
                                                  std::string name)
   : node_(node)
-  , monitor_(std::make_shared<tesseract_monitoring::ROSEnvironmentMonitor>(*node_, robot_description, name))
+  , logger_(node_->get_logger().get_child(LOGGER_ID))
+  , monitor_(std::make_shared<tesseract_monitoring::ROSEnvironmentMonitor>(node_, robot_description, name))
   , environment_cache_(std::make_shared<tesseract_environment::DefaultEnvironmentCache>(monitor_->getEnvironment()))
   , profiles_(std::make_shared<tesseract_planning::ProfileDictionary>())
   , planning_server_(std::make_unique<tesseract_planning::TaskComposerServer>())
@@ -116,11 +118,12 @@ TesseractPlanningServer::TesseractPlanningServer(rclcpp::Node::SharedPtr node,
   ctor();
 }
 
-TesseractPlanningServer::TesseractPlanningServer(rclcpp::Node::SharedPtr node,
+TesseractPlanningServer::TesseractPlanningServer(const rclcpp::Node::SharedPtr& node,
                                                  tesseract_environment::Environment::UPtr env,
                                                  std::string name)
   : node_(node)
-  , monitor_(std::make_shared<tesseract_monitoring::ROSEnvironmentMonitor>(*node_, std::move(env), name))
+  , logger_(node_->get_logger().get_child(LOGGER_ID))
+  , monitor_(std::make_shared<tesseract_monitoring::ROSEnvironmentMonitor>(node_, std::move(env), name))
   , environment_cache_(std::make_shared<tesseract_environment::DefaultEnvironmentCache>(monitor_->getEnvironment()))
   , profiles_(std::make_shared<tesseract_planning::ProfileDictionary>())
   , planning_server_(std::make_unique<tesseract_planning::TaskComposerServer>())
@@ -185,7 +188,7 @@ rclcpp_action::CancelResponse TesseractPlanningServer::handle_cancel(
 void TesseractPlanningServer::onMotionPlanningCallback(
     const std::shared_ptr<rclcpp_action::ServerGoalHandle<tesseract_msgs::action::GetMotionPlan>> goal_handle)
 {
-  RCLCPP_INFO(node_->get_logger(), "Tesseract Planning Server Received Request!");
+  RCLCPP_INFO(logger_, "Tesseract Planning Server Received Request!");
   const auto goal = goal_handle->get_goal();
   auto result = std::make_shared<tesseract_msgs::action::GetMotionPlan::Result>();
 
@@ -198,7 +201,7 @@ void TesseractPlanningServer::onMotionPlanningCallback(
     oss << "   Available Tasks:" << std::endl;
     for (const auto& planner : planning_server_->getAvailableTasks())
       oss << "      - " << planner << std::endl;
-    RCLCPP_ERROR_STREAM(node_->get_logger(), oss.str());
+    RCLCPP_ERROR_STREAM(logger_, oss.str());
     goal_handle->succeed(result);
     return;
   }
@@ -217,7 +220,7 @@ void TesseractPlanningServer::onMotionPlanningCallback(
     oss << "   Available Executors:" << std::endl;
     for (const auto& executor : available_executors)
       oss << "      - " << executor << std::endl;
-    RCLCPP_ERROR_STREAM(node_->get_logger(), oss.str());
+    RCLCPP_ERROR_STREAM(logger_, oss.str());
     goal_handle->succeed(result);
     return;
   }
@@ -280,7 +283,7 @@ void TesseractPlanningServer::onMotionPlanningCallback(
     {
       std::ostringstream oss;
       oss << "Failed to generated DOT Graph: '" << e.what() << "'!" << std::endl;
-      RCLCPP_ERROR_STREAM(node_->get_logger(), oss.str());
+      RCLCPP_ERROR_STREAM(logger_, oss.str());
     }
   }
 
@@ -296,7 +299,7 @@ void TesseractPlanningServer::onMotionPlanningCallback(
     result->response.successful = false;
     std::ostringstream oss;
     oss << "Failed to get output results from task with error: '" << e.what() << "'!" << std::endl;
-    RCLCPP_ERROR_STREAM(node_->get_logger(), oss.str());
+    RCLCPP_ERROR_STREAM(logger_, oss.str());
     goal_handle->succeed(result);
     return;
   }
@@ -304,7 +307,7 @@ void TesseractPlanningServer::onMotionPlanningCallback(
   result->response.successful = plan_future->context->isSuccessful();
   plan_future->clear();
 
-  RCLCPP_INFO(node_->get_logger(), "Tesseract Planning Server Finished Request in %f seconds!", timer.elapsedSeconds());
+  RCLCPP_INFO(logger_, "Tesseract Planning Server Finished Request in %f seconds!", timer.elapsedSeconds());
   goal_handle->succeed(result);
 }
 

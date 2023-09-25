@@ -48,34 +48,43 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 namespace tesseract_rosutils
 {
-static const char NODE_ID[] = "tesseract_rosutils_plotting";
+static const char LOGGER_ID[] = "ROSPlotting";
 
-ROSPlotting::ROSPlotting(std::string root_link, std::string topic_namespace)
-  : root_link_(root_link), topic_namespace_(topic_namespace)
+ROSPlotting::ROSPlotting(const rclcpp::Node::SharedPtr& parent_node, std::string root_link, std::string topic_namespace)
+  : node_(parent_node)
+  , logger_(node_->get_logger().get_child(LOGGER_ID))
+  , root_link_(root_link)
+  , topic_namespace_(topic_namespace)
 {
-  node_ = std::make_shared<rclcpp::Node>(NODE_ID);
-  trajectory_pub_ =
-      node_->create_publisher<tesseract_msgs::msg::Trajectory>(topic_namespace + "/display_tesseract_trajectory", 1);
-  collisions_pub_ =
-      node_->create_publisher<visualization_msgs::msg::MarkerArray>(topic_namespace + "/display_collisions", 1);
-  arrows_pub_ = node_->create_publisher<visualization_msgs::msg::MarkerArray>(topic_namespace + "/display_arrows", 1);
-  axes_pub_ = node_->create_publisher<visualization_msgs::msg::MarkerArray>(topic_namespace + "/display_axes", 1);
+#if __has_include(<rclcpp/version.h>)  // ROS 2 Humble
+  callback_group_ = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive, false);
+  callback_executor_ = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
+  callback_executor_->add_callback_group(callback_group_, node_->get_node_base_interface());
+  callback_thread_ = std::make_shared<std::thread>([this]() { callback_executor_->spin(); });
+#else  // ROS 2 Foxy
+  callback_group_ = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+#endif
+  rclcpp::PublisherOptions options;
+  options.callback_group = callback_group_;
+  trajectory_pub_ = node_->create_publisher<tesseract_msgs::msg::Trajectory>(
+      topic_namespace + "/display_tesseract_trajectory", 1, options);
+  collisions_pub_ = node_->create_publisher<visualization_msgs::msg::MarkerArray>(
+      topic_namespace + "/display_collisions", 1, options);
+  arrows_pub_ =
+      node_->create_publisher<visualization_msgs::msg::MarkerArray>(topic_namespace + "/display_arrows", 1, options);
+  axes_pub_ =
+      node_->create_publisher<visualization_msgs::msg::MarkerArray>(topic_namespace + "/display_axes", 1, options);
   tool_path_pub_ =
-      node_->create_publisher<visualization_msgs::msg::MarkerArray>(topic_namespace + "/display_tool_path", 1);
-
-  internal_node_executor_ = std::make_shared<rclcpp::executors::MultiThreadedExecutor>();
-  internal_node_spinner_ = std::make_shared<std::thread>([this]() {
-    internal_node_executor_->add_node(node_);
-    internal_node_executor_->spin();
-    internal_node_executor_->remove_node(node_);
-  });
+      node_->create_publisher<visualization_msgs::msg::MarkerArray>(topic_namespace + "/display_tool_path", 1, options);
 }
 
 ROSPlotting::~ROSPlotting()
 {
-  internal_node_executor_->cancel();
-  if (internal_node_spinner_->joinable())
-    internal_node_spinner_->join();
+#if __has_include(<rclcpp/version.h>)  // ROS 2 Humble
+  callback_executor_->cancel();
+  if (callback_thread_->joinable())
+    callback_thread_->join();
+#endif
 }
 
 bool ROSPlotting::isConnected() const { return true; }
@@ -284,7 +293,7 @@ void ROSPlotting::plotMarker(const tesseract_visualization::Marker& marker, std:
 
 void ROSPlotting::plotMarkers(const std::vector<tesseract_visualization::Marker::Ptr>& /*markers*/, std::string /*ns*/)
 {
-  RCLCPP_ERROR(node_->get_logger(), "ROSPlotting: Plotting vector of markers is currently not implemented!");
+  RCLCPP_ERROR(logger_, "Plotting vector of markers is currently not implemented!");
 }
 
 void ROSPlotting::plotToolpath(const tesseract_environment::Environment& env,
@@ -343,7 +352,7 @@ void ROSPlotting::clear(std::string ns)
 
 static void waitForInputAsync(std::string message)
 {
-  RCLCPP_ERROR(rclcpp::get_logger(NODE_ID), "%s", message.c_str());
+  RCLCPP_ERROR(rclcpp::get_logger(LOGGER_ID), "%s", message.c_str());
   std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 }
 

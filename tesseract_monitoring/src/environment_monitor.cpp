@@ -37,6 +37,7 @@
 #include <tesseract_common/macros.h>
 TESSERACT_COMMON_IGNORE_WARNINGS_PUSH
 #include <boost/algorithm/string.hpp>
+#include <rclcpp/publisher_options.hpp>
 TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 #ifdef BOOST_BIND_NO_PLACEHOLDERS
@@ -55,29 +56,26 @@ BOOST_BIND_NO_PLACEHOLDERS
 
 namespace tesseract_monitoring
 {
-ROSEnvironmentMonitor::ROSEnvironmentMonitor(const rclcpp::Node& parent_node,
+static const char LOGGER_ID[] = "ROSEnvMonitor";
+
+ROSEnvironmentMonitor::ROSEnvironmentMonitor(const rclcpp::Node::SharedPtr& node,
                                              std::string robot_description,
                                              std::string monitor_namespace)
   : EnvironmentMonitor(std::move(monitor_namespace))
-  , node_(std::make_shared<rclcpp::Node>(monitor_namespace_ + "_Monitor", parent_node.get_fully_qualified_name()))
+  , node_(node)
+  , logger_{ node_->get_logger().get_child(LOGGER_ID).get_child(monitor_namespace_) }
   , robot_description_(std::move(robot_description))
-  , cb_group_(node_->create_callback_group(rclcpp::CallbackGroupType::Reentrant))
-  , logger_{ node_->get_logger() }
 {
-  // Initial setup
-  internal_node_spinner_ = std::make_shared<std::thread>([this]() {
-    internal_node_executor_->add_node(node_);
-    internal_node_executor_->spin();
-    internal_node_executor_->remove_node(node_);
-  });
+  createExecutor();
+
   std::string urdf_xml_string;
   std::string srdf_xml_string;
-  if (!parent_node.get_parameter(robot_description_, urdf_xml_string))
+  if (!node_->get_parameter(robot_description_, urdf_xml_string))
   {
     RCLCPP_ERROR(logger_, "Failed to find parameter: %s", robot_description_.c_str());
     return;
   }
-  if (!parent_node.get_parameter(robot_description_ + "_semantic", srdf_xml_string))
+  if (!node_->get_parameter(robot_description_ + "_semantic", srdf_xml_string))
   {
     RCLCPP_ERROR(logger_, "Failed to find parameter: %s", (robot_description_ + "_semantic").c_str());
     return;
@@ -92,27 +90,39 @@ ROSEnvironmentMonitor::ROSEnvironmentMonitor(const rclcpp::Node& parent_node,
   }
 }
 
-ROSEnvironmentMonitor::ROSEnvironmentMonitor(const rclcpp::Node& parent_node,
+ROSEnvironmentMonitor::ROSEnvironmentMonitor(const rclcpp::Node::SharedPtr& node,
                                              tesseract_environment::Environment::Ptr env,
                                              std::string monitor_namespace)
   : EnvironmentMonitor(std::move(env), std::move(monitor_namespace))
-  , node_(std::make_shared<rclcpp::Node>(monitor_namespace_ + "_Monitor", parent_node.get_fully_qualified_name()))
-  , cb_group_(node_->create_callback_group(rclcpp::CallbackGroupType::Reentrant))
-  , logger_{ node_->get_logger() }
+  , node_(node)
+  , logger_{ node_->get_logger().get_child(LOGGER_ID).get_child(monitor_namespace_) }
 {
-  internal_node_spinner_ = std::make_unique<std::thread>([this]() {
-    internal_node_executor_->add_node(node_);
-    internal_node_executor_->spin();
-    internal_node_executor_->remove_node(node_);
-  });
+  createExecutor();
+
   if (!initialize())
   {
     RCLCPP_WARN(logger_, "EnvironmentMonitor failed to initialize from environment");
   }
 }
 
+void ROSEnvironmentMonitor::createExecutor()
+{
+#if __has_include(<rclcpp/version.h>)  // ROS 2 Humble
+  callback_group_services_ = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive, false);
+  callback_group_pubsub_ = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive, false);
+  callback_executor_ = std::make_shared<rclcpp::executors::MultiThreadedExecutor>();
+  callback_executor_->add_callback_group(callback_group_services_, node_->get_node_base_interface());
+  callback_executor_->add_callback_group(callback_group_pubsub_, node_->get_node_base_interface());
+  callback_thread_ = std::make_shared<std::thread>([this]() { callback_executor_->spin(); });
+#else  // ROS 2 Foxy
+  // TODO: Make equivalent to Humble code (also in other files)
+  callback_group_ = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+#endif
+}
+
 ROSEnvironmentMonitor::~ROSEnvironmentMonitor()
 {
+  RCLCPP_INFO(logger_, "ROSEnvironmentMonitor::~ROSEnvironmentMonitor");
   stopPublishingEnvironment();
   stopStateMonitor();
 
@@ -121,6 +131,11 @@ ROSEnvironmentMonitor::~ROSEnvironmentMonitor()
   env_ = nullptr;
 
   shutdown();
+#if __has_include(<rclcpp/version.h>)  // ROS 2 Humble
+  callback_executor_->cancel();
+  if (callback_thread_->joinable())
+    callback_thread_->join();
+#endif
 }
 
 const std::string& ROSEnvironmentMonitor::getURDFDescription() const { return robot_description_; }
@@ -164,9 +179,6 @@ void ROSEnvironmentMonitor::shutdown()
   get_environment_changes_service_.reset();
   get_environment_information_service_.reset();
   save_scene_graph_service_.reset();
-  internal_node_executor_->cancel();
-  if (internal_node_spinner_->joinable())
-    internal_node_spinner_->join();
 }
 
 bool ROSEnvironmentMonitor::initialize()
@@ -215,25 +227,25 @@ bool ROSEnvironmentMonitor::initialize()
       modify_environment_service,
       std::bind(&ROSEnvironmentMonitor::modifyEnvironmentCallback, this, _ph1, _ph2),
       rmw_qos_profile_services_default,
-      cb_group_);
+      callback_group_services_);
 
   get_environment_changes_service_ = node_->create_service<tesseract_msgs::srv::GetEnvironmentChanges>(
       get_environment_changes_service,
       std::bind(&ROSEnvironmentMonitor::getEnvironmentChangesCallback, this, _ph1, _ph2),
       rmw_qos_profile_services_default,
-      cb_group_);
+      callback_group_services_);
 
   get_environment_information_service_ = node_->create_service<tesseract_msgs::srv::GetEnvironmentInformation>(
       get_environment_information_service,
       std::bind(&ROSEnvironmentMonitor::getEnvironmentInformationCallback, this, _ph1, _ph2),
       rmw_qos_profile_services_default,
-      cb_group_);
+      callback_group_services_);
 
   save_scene_graph_service_ = node_->create_service<tesseract_msgs::srv::SaveSceneGraph>(
       save_scene_graph_service,
       std::bind(&ROSEnvironmentMonitor::saveSceneGraphCallback, this, _ph1, _ph2),
       rmw_qos_profile_services_default,
-      cb_group_);
+      callback_group_services_);
 
   return true;
 }
@@ -274,8 +286,10 @@ void ROSEnvironmentMonitor::startPublishingEnvironment()
   }
 
   std::string environment_topic = R"(/)" + monitor_namespace_ + DEFAULT_PUBLISH_ENVIRONMENT_TOPIC;
+  rclcpp::PublisherOptions options;
+  options.callback_group = callback_group_pubsub_;
   environment_publisher_ =
-      node_->create_publisher<tesseract_msgs::msg::EnvironmentState>(environment_topic, rclcpp::QoS(100));
+      node_->create_publisher<tesseract_msgs::msg::EnvironmentState>(environment_topic, rclcpp::QoS(100), options);
   RCLCPP_INFO(logger_, "Publishing maintained environment on '%s'", environment_topic.c_str());
   publish_environment_ = std::make_unique<std::thread>([this]() { environmentPublishingThread(); });
 }
@@ -291,6 +305,7 @@ void ROSEnvironmentMonitor::environmentPublishingThread()
   tesseract_rosutils::toMsg(start_msg, *(env_));
 
   environment_publisher_->publish(start_msg);
+  // TODO: Why twice?
   rclcpp::sleep_for(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::duration<double>(1.5)));
   environment_publisher_->publish(start_msg);
 
@@ -323,10 +338,10 @@ void ROSEnvironmentMonitor::environmentPublishingThread()
 
 void ROSEnvironmentMonitor::stopMonitoringEnvironment()
 {
+  monitored_environment_subscriber_.reset();
   get_monitored_environment_changes_client_.reset();
   modify_monitored_environment_client_.reset();
   get_monitored_environment_information_client_.reset();
-  monitored_environment_subscriber_.reset();
   RCLCPP_INFO(logger_, "Stopped monitoring environment.");
 }
 
@@ -337,6 +352,9 @@ CurrentStateMonitor& ROSEnvironmentMonitor::getStateMonitor() { return *current_
 void ROSEnvironmentMonitor::startMonitoringEnvironment(const std::string& monitored_namespace,
                                                        tesseract_environment::MonitoredEnvironmentMode mode)
 {
+  if (monitored_namespace == monitor_namespace_) {
+     RCLCPP_ERROR(logger_, "Cannot monitor own environment");
+  }
   mode_ = mode;
   std::string monitored_environment_topic = R"(/)" + monitored_namespace + DEFAULT_PUBLISH_ENVIRONMENT_TOPIC;
   std::string monitored_environment_changes_service =
@@ -348,14 +366,15 @@ void ROSEnvironmentMonitor::startMonitoringEnvironment(const std::string& monito
   stopMonitoringEnvironment();
 
   get_monitored_environment_changes_client_ = node_->create_client<tesseract_msgs::srv::GetEnvironmentChanges>(
-      monitored_environment_changes_service, rmw_qos_profile_services_default, cb_group_);
+      monitored_environment_changes_service, rmw_qos_profile_services_default, callback_group_services_);
   modify_monitored_environment_client_ = node_->create_client<tesseract_msgs::srv::ModifyEnvironment>(
-      monitored_environment_modify_service, rmw_qos_profile_services_default, cb_group_);
+      monitored_environment_modify_service, rmw_qos_profile_services_default, callback_group_services_);
   get_monitored_environment_information_client_ = node_->create_client<tesseract_msgs::srv::GetEnvironmentInformation>(
-      monitored_environment_information_service, rmw_qos_profile_services_default, cb_group_);
+      monitored_environment_information_service, rmw_qos_profile_services_default, callback_group_services_);
 
   rclcpp::SubscriptionOptions options;
-  options.callback_group = cb_group_;
+  options.callback_group = callback_group_pubsub_;
+  // TODO: Make this one MutuallyExclusive
   monitored_environment_subscriber_ = node_->create_subscription<tesseract_msgs::msg::EnvironmentState>(
       monitored_environment_topic,
       1000,
@@ -642,7 +661,7 @@ void ROSEnvironmentMonitor::startStateMonitor(const std::string& joint_states_to
   if (env_)
   {
     if (!current_state_monitor_)
-      current_state_monitor_.reset(new CurrentStateMonitor(env_, node_));
+      current_state_monitor_.reset(new CurrentStateMonitor(node_, env_));
 
     current_state_monitor_->addUpdateCallback(
         std::bind(&ROSEnvironmentMonitor::onJointStateUpdate, this, std::placeholders::_1));
@@ -789,7 +808,7 @@ void ROSEnvironmentMonitor::updateEnvironmentWithCurrentState()
 void ROSEnvironmentMonitor::setEnvironmentPublishingFrequency(double hz)
 {
   publish_environment_frequency_ = hz;
-  RCLCPP_DEBUG(logger_, "Maximum frquency for publishing an environment is now %lf Hz", publish_environment_frequency_);
+  RCLCPP_DEBUG(logger_, "Maximum frequency for publishing an environment is now %lf Hz", publish_environment_frequency_);
 }
 
 void ROSEnvironmentMonitor::modifyEnvironmentCallback(tesseract_msgs::srv::ModifyEnvironment::Request::SharedPtr req,

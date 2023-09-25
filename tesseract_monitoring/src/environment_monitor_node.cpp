@@ -41,7 +41,7 @@ int main(int argc, char** argv)
   std::string joint_state_topic = node->declare_parameter("joint_state_topic", "");
   bool publish_environment = node->declare_parameter("publish_environment", false);
 
-  tesseract_monitoring::ROSEnvironmentMonitor monitor(*node, ROBOT_DESCRIPTION_PARAM, monitor_namespace);
+  tesseract_monitoring::ROSEnvironmentMonitor monitor(node, ROBOT_DESCRIPTION_PARAM, monitor_namespace);
 
   if (publish_environment)
     monitor.startPublishingEnvironment();

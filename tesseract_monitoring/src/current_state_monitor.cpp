@@ -55,14 +55,12 @@ TESSERACT_COMMON_IGNORE_WARNINGS_POP
 
 namespace tesseract_monitoring
 {
-CurrentStateMonitor::CurrentStateMonitor(const tesseract_environment::Environment::ConstPtr& env)
-  : CurrentStateMonitor(env, std::make_shared<rclcpp::Node>("current_state_monitor"))
-{
-}
+static const char LOGGER_ID[] = "CurrentStateMonitor";
 
-CurrentStateMonitor::CurrentStateMonitor(const tesseract_environment::Environment::ConstPtr& env,
-                                         rclcpp::Node::SharedPtr node)
+CurrentStateMonitor::CurrentStateMonitor(const rclcpp::Node::SharedPtr& node,
+                                         const tesseract_environment::Environment::ConstPtr& env)
   : node_(node)
+  , logger_{ node_->get_logger().get_child(LOGGER_ID) }
   , env_(env)
   , env_state_(env->getState())
   , last_environment_revision_(env_->getRevision())
@@ -71,11 +69,27 @@ CurrentStateMonitor::CurrentStateMonitor(const tesseract_environment::Environmen
   , error_(std::numeric_limits<double>::epsilon())
   , tf_broadcaster_(node_)
 {
+#if __has_include(<rclcpp/version.h>)  // ROS 2 Humble
+  callback_group_ = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive, false);
+  callback_executor_ = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
+  callback_executor_->add_callback_group(callback_group_, node_->get_node_base_interface());
+  callback_thread_ = std::make_shared<std::thread>([this]() { callback_executor_->spin(); });
+#else  // ROS 2 Foxy
+  callback_group_ = node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+#endif
 }
 
 const tesseract_environment::Environment& CurrentStateMonitor::getEnvironment() const { return *env_; }
 
-CurrentStateMonitor::~CurrentStateMonitor() { stopStateMonitor(); }
+CurrentStateMonitor::~CurrentStateMonitor()
+{
+  stopStateMonitor();
+#if __has_include(<rclcpp/version.h>)  // ROS 2 Humble
+  callback_executor_->cancel();
+  if (callback_thread_->joinable())
+    callback_thread_->join();
+#endif
+}
 
 tesseract_scene_graph::SceneState CurrentStateMonitor::getCurrentState() const
 {
@@ -116,18 +130,21 @@ void CurrentStateMonitor::startStateMonitor(const std::string& joint_states_topi
     joint_time_.clear();
     if (joint_states_topic.empty())
     {
-      RCLCPP_ERROR(node_->get_logger(), "The joint states topic cannot be an empty string");
+      RCLCPP_ERROR(logger_, "The joint states topic cannot be an empty string");
     }
     else
     {
+      rclcpp::SubscriptionOptions options;
+      options.callback_group = callback_group_;
       joint_state_subscriber_ = node_->create_subscription<sensor_msgs::msg::JointState>(
           joint_states_topic,
           rclcpp::SensorDataQoS(),
-          std::bind(&CurrentStateMonitor::jointStateCallback, this, std::placeholders::_1));
+          std::bind(&CurrentStateMonitor::jointStateCallback, this, std::placeholders::_1),
+          options);
     }
     state_monitor_started_ = true;
     monitor_start_time_ = node_->now();
-    RCLCPP_DEBUG(node_->get_logger(), "Listening to joint states on topic '%s'", joint_states_topic.c_str());
+    RCLCPP_DEBUG(logger_, "Listening to joint states on topic '%s'", joint_states_topic.c_str());
   }
 }
 
@@ -138,7 +155,7 @@ void CurrentStateMonitor::stopStateMonitor()
   if (state_monitor_started_)
   {
     joint_state_subscriber_.reset();
-    RCLCPP_DEBUG(node_->get_logger(), "No longer listening to joint states");
+    RCLCPP_DEBUG(logger_, "No longer listening to joint states");
     state_monitor_started_ = false;
   }
 }
@@ -186,7 +203,7 @@ bool CurrentStateMonitor::haveCompleteState() const
     {
       if (!isPassiveOrMimicDOF(joint.first))
       {
-        RCLCPP_DEBUG(node_->get_logger(), "Joint variable '%s' has never been updated", joint.first.c_str());
+        RCLCPP_DEBUG(logger_, "Joint variable '%s' has never been updated", joint.first.c_str());
         result = false;
       }
     }
@@ -201,7 +218,7 @@ bool CurrentStateMonitor::haveCompleteState(std::vector<std::string>& missing_jo
     if (joint_time_.find(joint.first) == joint_time_.end())
       if (!isPassiveOrMimicDOF(joint.first))
       {
-        RCLCPP_DEBUG(node_->get_logger(), "Joint variable '%s' has never been updated", joint.first.c_str());
+        RCLCPP_DEBUG(logger_, "Joint variable '%s' has never been updated", joint.first.c_str());
         missing_joints.push_back(joint.first);
         result = false;
       }
@@ -221,12 +238,12 @@ bool CurrentStateMonitor::haveCompleteState(const rclcpp::Duration& age) const
     auto it = joint_time_.find(joint.first);
     if (it == joint_time_.end())
     {
-      RCLCPP_DEBUG(node_->get_logger(), "Joint variable '%s' has never been updated", joint.first.c_str());
+      RCLCPP_DEBUG(logger_, "Joint variable '%s' has never been updated", joint.first.c_str());
       result = false;
     }
     else if (it->second < old)
     {
-      RCLCPP_DEBUG(node_->get_logger(),
+      RCLCPP_DEBUG(logger_,
                    "Joint variable '%s' was last updated %0.3lf seconds ago (older than the allowed %0.3lf seconds)",
                    joint.first.c_str(),
                    (now - it->second).seconds(),
@@ -251,13 +268,13 @@ bool CurrentStateMonitor::haveCompleteState(const rclcpp::Duration& age, std::ve
     auto it = joint_time_.find(joint.first);
     if (it == joint_time_.end())
     {
-      RCLCPP_DEBUG(node_->get_logger(), "Joint variable '%s' has never been updated", joint.first.c_str());
+      RCLCPP_DEBUG(logger_, "Joint variable '%s' has never been updated", joint.first.c_str());
       missing_states.push_back(joint.first);
       result = false;
     }
     else if (it->second < old)
     {
-      RCLCPP_DEBUG(node_->get_logger(),
+      RCLCPP_DEBUG(logger_,
                    "Joint variable '%s' was last updated %0.3lf seconds ago (older than the allowed %0.3lf seconds)",
                    joint.first.c_str(),
                    (now - it->second).seconds(),
@@ -334,7 +351,7 @@ void CurrentStateMonitor::jointStateCallback(const sensor_msgs::msg::JointState:
 
   if (joint_state->name.size() != joint_state->position.size())
   {
-    RCLCPP_ERROR_THROTTLE(node_->get_logger(),
+    RCLCPP_ERROR_THROTTLE(logger_,
                           *node_->get_clock(),
                           rclcpp::Duration::from_seconds(1).nanoseconds(),
                           "State monitor received invalid joint state (number "

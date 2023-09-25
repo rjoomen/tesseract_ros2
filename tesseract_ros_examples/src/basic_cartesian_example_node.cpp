@@ -79,13 +79,13 @@ int main(int argc, char** argv)
   std::thread spinner{ [node]() { rclcpp::spin(node); } };
 
   // Create monitor
-  auto monitor = std::make_shared<tesseract_monitoring::ROSEnvironmentMonitor>(*node, env, EXAMPLE_MONITOR_NAMESPACE);
+  auto monitor = std::make_shared<tesseract_monitoring::ROSEnvironmentMonitor>(node, env, EXAMPLE_MONITOR_NAMESPACE);
   if (rviz)
     monitor->startPublishingEnvironment();
 
   ROSPlottingPtr plotter;
   if (plotting)
-    plotter = std::make_shared<ROSPlotting>(env->getSceneGraph()->getRoot());
+    plotter = std::make_shared<ROSPlotting>(node, env->getSceneGraph()->getRoot());
 
   BasicCartesianExample example(env, plotter, ifopt, debug);
   rclcpp::sleep_for(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::duration<double>(5.0)));

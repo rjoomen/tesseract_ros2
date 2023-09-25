@@ -75,7 +75,9 @@ public:
    * @param robot_description The name of the ROS parameter that contains the URDF (in string format)
    * @param monitor_namespace A name identifying this monitor, must be unique
    */
-  ROSEnvironmentMonitor(const rclcpp::Node& parent_node, std::string robot_description, std::string monitor_namespace);
+  ROSEnvironmentMonitor(const rclcpp::Node::SharedPtr& node,
+                        std::string robot_description,
+                        std::string monitor_namespace);
 
   /**
    * @brief Constructor
@@ -83,7 +85,7 @@ public:
    * @param env The environment
    * @param monitor_namespace A name identifying this monitor, must be unique
    */
-  ROSEnvironmentMonitor(const rclcpp::Node& parent_node,
+  ROSEnvironmentMonitor(const rclcpp::Node::SharedPtr& node,
                         std::shared_ptr<tesseract_environment::Environment> env,
                         std::string monitor_namespace);
 
@@ -144,9 +146,13 @@ protected:
   bool enforce_next_state_update_;  /// flag to enforce immediate state update in onStateUpdate()
 
   rclcpp::Node::SharedPtr node_;
-  rclcpp::executors::MultiThreadedExecutor::SharedPtr internal_node_executor_ =
-      std::make_shared<rclcpp::executors::MultiThreadedExecutor>();
-  std::shared_ptr<std::thread> internal_node_spinner_;
+  rclcpp::CallbackGroup::SharedPtr callback_group_pubsub_;
+  rclcpp::CallbackGroup::SharedPtr callback_group_services_;
+#if __has_include(<rclcpp/version.h>)  // ROS 2 Humble
+  rclcpp::executors::MultiThreadedExecutor::SharedPtr callback_executor_;
+  std::shared_ptr<std::thread> callback_thread_;
+#endif
+
   std::string robot_description_;
 
   // variables for planning scene publishing
@@ -182,9 +188,9 @@ protected:
   /// List of callbacks to trigger when updates are received
   std::vector<std::function<void()> > update_callbacks_;
 
-  rclcpp::CallbackGroup::SharedPtr cb_group_;
-
 private:
+  void createExecutor();
+
   /** @brief Handle state changes (when not monitoring) */
   void sceneStateChangedCallback(const tesseract_environment::Event& event);
 
