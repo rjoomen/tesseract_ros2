@@ -97,7 +97,7 @@ namespace tesseract_planning_server
 static const char LOGGER_ID[] = "TesseractPlanningServer";
 const std::string TesseractPlanningServer::DEFAULT_GET_MOTION_PLAN_ACTION = "tesseract_get_motion_plan";
 
-TesseractPlanningServer::TesseractPlanningServer(const rclcpp::Node::SharedPtr& node,
+TesseractPlanningServer::TesseractPlanningServer(rclcpp::Node::SharedPtr node,
                                                  const std::string& robot_description,
                                                  std::string name)
   : node_(node)
@@ -118,7 +118,7 @@ TesseractPlanningServer::TesseractPlanningServer(const rclcpp::Node::SharedPtr& 
   ctor();
 }
 
-TesseractPlanningServer::TesseractPlanningServer(const rclcpp::Node::SharedPtr& node,
+TesseractPlanningServer::TesseractPlanningServer(rclcpp::Node::SharedPtr node,
                                                  tesseract_environment::Environment::UPtr env,
                                                  std::string name)
   : node_(node)

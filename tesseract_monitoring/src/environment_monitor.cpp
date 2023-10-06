@@ -122,7 +122,6 @@ void ROSEnvironmentMonitor::createExecutor()
 
 ROSEnvironmentMonitor::~ROSEnvironmentMonitor()
 {
-  RCLCPP_INFO(logger_, "ROSEnvironmentMonitor::~ROSEnvironmentMonitor");
   stopPublishingEnvironment();
   stopStateMonitor();
 
@@ -352,8 +351,9 @@ CurrentStateMonitor& ROSEnvironmentMonitor::getStateMonitor() { return *current_
 void ROSEnvironmentMonitor::startMonitoringEnvironment(const std::string& monitored_namespace,
                                                        tesseract_environment::MonitoredEnvironmentMode mode)
 {
-  if (monitored_namespace == monitor_namespace_) {
-     RCLCPP_ERROR(logger_, "Cannot monitor own environment");
+  if (monitored_namespace == monitor_namespace_)
+  {
+    RCLCPP_ERROR(logger_, "Cannot monitor own environment");
   }
   mode_ = mode;
   std::string monitored_environment_topic = R"(/)" + monitored_namespace + DEFAULT_PUBLISH_ENVIRONMENT_TOPIC;
@@ -808,7 +808,8 @@ void ROSEnvironmentMonitor::updateEnvironmentWithCurrentState()
 void ROSEnvironmentMonitor::setEnvironmentPublishingFrequency(double hz)
 {
   publish_environment_frequency_ = hz;
-  RCLCPP_DEBUG(logger_, "Maximum frequency for publishing an environment is now %lf Hz", publish_environment_frequency_);
+  RCLCPP_DEBUG(
+      logger_, "Maximum frequency for publishing an environment is now %lf Hz", publish_environment_frequency_);
 }
 
 void ROSEnvironmentMonitor::modifyEnvironmentCallback(tesseract_msgs::srv::ModifyEnvironment::Request::SharedPtr req,
