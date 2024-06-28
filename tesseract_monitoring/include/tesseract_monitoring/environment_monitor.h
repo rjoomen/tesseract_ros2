@@ -74,14 +74,16 @@ public:
    * @param robot_description The name of the ROS parameter that contains the URDF (in string format)
    * @param monitor_namespace A name identifying this monitor, must be unique
    */
-  ROSEnvironmentMonitor(rclcpp::Node::SharedPtr node, std::string robot_description, std::string monitor_namespace);
+  ROSEnvironmentMonitor(const rclcpp::Node::SharedPtr& node,
+                        std::string robot_description,
+                        std::string monitor_namespace);
 
   /**
    * @brief Constructor
    * @param env The environment
    * @param monitor_namespace A name identifying this monitor, must be unique
    */
-  ROSEnvironmentMonitor(rclcpp::Node::SharedPtr node,
+  ROSEnvironmentMonitor(const rclcpp::Node::SharedPtr& node,
                         std::shared_ptr<tesseract_environment::Environment> env,
                         std::string monitor_namespace);
 
@@ -141,7 +143,6 @@ protected:
   rclcpp::Time last_robot_motion_time_ = rclcpp::Time(0l, RCL_ROS_TIME);  /// Last time the robot has moved
   bool enforce_next_state_update_;  /// flag to enforce immediate state update in onStateUpdate()
 
-  rclcpp::Node::SharedPtr node_;
   rclcpp::Node::SharedPtr internal_node_;
   rclcpp::executors::MultiThreadedExecutor::SharedPtr internal_node_executor_;
   std::shared_ptr<std::thread> internal_node_spinner_;
