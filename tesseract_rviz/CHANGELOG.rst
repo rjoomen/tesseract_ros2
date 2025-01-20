@@ -5,8 +5,8 @@ Changelog for package tesseract_rviz
 0.28.0 (2025-01-17)
 -------------------
 
-Forthcoming
------------
+0.28.1 (2025-01-20)
+-------------------
 * Reorder changelogs
 * Add missing floating joint components
 * 0.28.0

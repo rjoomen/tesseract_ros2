@@ -7,8 +7,8 @@ Changelog for package tesseract_monitoring
 * Update due to changes in tesseract and tesseract_planning repos
 * Contributors: Roelof Oomen
 
-Forthcoming
------------
+0.28.1 (2025-01-20)
+-------------------
 * Reorder changelogs
 * Add missing floating joint components
 * 0.28.0

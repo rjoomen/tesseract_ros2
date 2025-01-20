@@ -8,8 +8,8 @@ Changelog for package tesseract_planning_server
 * Update due to changes with profiles and overrides
 * Contributors: Levi Armstrong, Roelof Oomen
 
-Forthcoming
------------
+0.28.1 (2025-01-20)
+-------------------
 * Reorder changelogs
 * 0.28.0
 * Update changelogs
