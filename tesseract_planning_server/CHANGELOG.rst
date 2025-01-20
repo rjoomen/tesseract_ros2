@@ -8,6 +8,15 @@ Changelog for package tesseract_planning_server
 * Update due to changes with profiles and overrides
 * Contributors: Levi Armstrong, Roelof Oomen
 
+Forthcoming
+-----------
+* Reorder changelogs
+* 0.28.0
+* Update changelogs
+* Update due to changes in tesseract and tesseract_planning repos
+* Update due to changes with profiles and overrides
+* Contributors: Levi Armstrong, Roelof Oomen
+
 0.27.0 (2024-12-01)
 -------------------
 * - Updates to support visualizing online planning example

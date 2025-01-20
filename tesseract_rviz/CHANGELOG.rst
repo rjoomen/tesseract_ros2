@@ -5,6 +5,14 @@ Changelog for package tesseract_rviz
 0.28.0 (2025-01-17)
 -------------------
 
+Forthcoming
+-----------
+* Reorder changelogs
+* Add missing floating joint components
+* 0.28.0
+* Update changelogs
+* Contributors: Levi Armstrong, Roelof Oomen
+
 0.27.0 (2024-12-01)
 -------------------
 * - Updates to support visualizing online planning example

@@ -8,6 +8,16 @@ Changelog for package tesseract_msgs
 * Update to clang-format-12
 * Contributors: Levi Armstrong
 
+Forthcoming
+-----------
+* Reorder changelogs
+* Add missing floating joint components
+* 0.28.0
+* Update changelogs
+* Update due to changes with profiles and overrides
+* Update to clang-format-12
+* Contributors: Levi Armstrong, Roelof Oomen
+
 0.27.0 (2024-12-01)
 -------------------
 * - Updates to support visualizing online planning example

@@ -7,6 +7,15 @@ Changelog for package tesseract_rosutils
 * Update due to changes with profiles and overrides
 * Contributors: Levi Armstrong
 
+Forthcoming
+-----------
+* Reorder changelogs
+* Add missing floating joint components
+* 0.28.0
+* Update changelogs
+* Update due to changes with profiles and overrides
+* Contributors: Levi Armstrong, Roelof Oomen
+
 0.27.0 (2024-12-01)
 -------------------
 * Fix plotTrajectory with InstructionPoly

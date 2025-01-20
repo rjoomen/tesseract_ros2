@@ -5,6 +5,13 @@ Changelog for package tesseract_ros_examples
 0.28.0 (2025-01-17)
 -------------------
 
+Forthcoming
+-----------
+* Reorder changelogs
+* 0.28.0
+* Update changelogs
+* Contributors: Levi Armstrong, Roelof Oomen
+
 0.27.0 (2024-12-01)
 -------------------
 * - Updates to support visualizing online planning example
